@@ -1,0 +1,3 @@
+[submodule "havoc-py"]
+	path = havoc-py
+	url = https://github.com/HavocFramework/havoc-py
