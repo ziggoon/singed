@@ -13,5 +13,8 @@ in the future, i plan to implement encrypted communication along with other post
 * execute shell commands
 
 ## Release History
+* 0.1.1
+    * Add upload file feature
+    * Add download file feature
 * 0.1.0
     * initial release

