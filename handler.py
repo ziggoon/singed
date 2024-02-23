@@ -12,7 +12,9 @@ COMMAND_DOWNLOAD         = 0x150
 COMMAND_UPLOAD           = 0x151
 COMMAND_SHELL            = 0x152
 COMMAND_CD               = 0x153
-COMMAND_EXIT             = 0x155
+COMMAND_PWD              = 0x154
+COMMAND_LS               = 0x155
+COMMAND_EXIT             = 0x199
 COMMAND_OUTPUT           = 0x200
 COMMAND_FILE             = 0x201
 
@@ -116,6 +118,37 @@ class CommandCd(Command):
 
         return Task.buffer
 
+class CommandPwd(Command):
+    CommandId = COMMAND_PWD
+    Name = "pwd"
+    Description = "prints current working directory"
+    Help = ""
+    NeedAdmin = False
+    Params = []
+    Mitr = []
+
+    def job_generate( self, arguments: dict ) -> bytes:
+        Task = Packer()
+
+        Task.add_int( self.CommandId )
+
+        return Task.buffer
+
+class CommandLs(Command):
+    CommandId = COMMAND_LS
+    Name = "ls"
+    Description = "lists files in current directory"
+    Help = ""
+    NeedAdmin = False
+    Params = []
+    Mitr = []
+
+    def job_generate( self, arguments: dict ) -> bytes:
+        Task = Packer()
+
+        Task.add_int( self.CommandId )
+
+        return Task.buffer
 
 class CommandExit( Command ):
     CommandId   = COMMAND_EXIT
@@ -166,6 +199,8 @@ class Singed(AgentType):
         CommandUpload(),
         CommandShell(),
         CommandCd(),
+        CommandPwd(),
+        CommandLs(),
         CommandExit(),
     ]
 

