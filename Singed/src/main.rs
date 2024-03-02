@@ -1,6 +1,7 @@
 mod serializer;
 mod commands;
 mod config;
+mod util;
 
 use crate::commands::{register, build_payload_get_job, send, handle_response};
 use crate::serializer::Serializer;

