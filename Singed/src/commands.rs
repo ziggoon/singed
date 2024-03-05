@@ -85,32 +85,36 @@ pub fn register() -> (Serializer, i32) {
 
 
     // add ipaddress (idk if there is a better way to do this. seems legit for now)
-    let addrs = nix::ifaddrs::getifaddrs().unwrap();
-    for ifaddr in addrs {
-        match ifaddr.address.unwrap().family() {
-            Some(AddressFamily::Inet) => {
-                if ifaddr.flags.contains(InterfaceFlags::IFF_UP) && !ifaddr.flags.contains(InterfaceFlags::IFF_LOOPBACK) {
-                    match ifaddr.address {
-                        Some(address) => {
-                            if ifaddr.interface_name.starts_with("en") || ifaddr.interface_name.starts_with("eth") || ifaddr.interface_name.starts_with("ens") {
-                                payload.add_string(address.as_sockaddr_in().unwrap().to_string().split(":").next().unwrap());
-                                break;
+    match nix::ifaddrs::getifaddrs() {
+        Ok(addrs) => {
+            for ifaddr in addrs {
+                match ifaddr.address.unwrap().family() {
+                    Some(AddressFamily::Inet) => {
+                        if ifaddr.flags.contains(InterfaceFlags::IFF_UP) && !ifaddr.flags.contains(InterfaceFlags::IFF_LOOPBACK) {
+                            match ifaddr.address {
+                                Some(address) => {
+                                    if ifaddr.interface_name.starts_with("en") || ifaddr.interface_name.starts_with("eth") || ifaddr.interface_name.starts_with("ens") {
+                                        payload.add_string(address.as_sockaddr_in().unwrap().to_string().split(":").next().unwrap());
+                                        break;
+                                    }
+                                },
+                                None => {
+                                    //println!("interface {} with unsupported address family", ifaddr.interface_name);
+                                }
                             }
-                        },
-                        None => {
-                            //println!("interface {} with unsupported address family", ifaddr.interface_name);
                         }
+                    },
+                    Some(_) => {
+                        continue;
+                    },
+                    None => {
+                        continue;
                     }
                 }
-            },
-            Some(_) => {
-                continue;
-            },
-            None => {
-                continue;
             }
-        }
-    } 
+        },
+        Err(_) => payload.add_string("127.0.0.1"),
+    };
 
     // add process name
     let proc_name = match env::current_exe() {

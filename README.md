@@ -8,11 +8,34 @@ in the future, i plan to implement encrypted communication along with other post
 
 ![](images/singed.png)
 
+## Installation
+1. clone repo & submodules
+```sh
+git clone --recurse-submodules https://github.com/ziggoon/singed.git; cd singed
+```
+2. run installation script
+```sh
+chmod +x setup.sh; ./setup.sh
+```
+3. start havoc server & client
+4. copy `handler.py` into `havoc-py`
+```sh
+cp handler.py havoc-py
+```
+5. run `handler.py`
+```sh
+python3 handler.py
+```
+
 ## Features
 ![](images/cmd.png)
+
 * execute shell commands
+* upload and download files
 
 ## Release History
+* 0.1.2
+    * Add basic system commands: ls, cd, pwd
 * 0.1.1
     * Add upload file feature
     * Add download file feature
